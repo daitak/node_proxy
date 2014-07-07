@@ -29,44 +29,51 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Add Proxy
 //
 app.use(function(req, res, next){
-        /*
-         var ua = req.headers['user-agent'];
-         db.zadd('online', Date.now(), ua, next);
-         console.log('add timestamp to redis');
-         console.log(req.headers['user-agent']);
-         */
-
-        /*
-        if (db.exists(req.uri)){
-            console.log('return cache');
-        }
-        else {
-        */
-            var x = url.parse(req.url);
-            var body = [];
-            req.on('data', function(data){
-                    body.push(data);
-                });
-
-            var options = {host: x.hostname, port: x.port || 80, path: x.path,
-                method: req.method, headers: req.headers };
-            var server_req = http.request(options, function(server_res){
-                    res.writeHead(server_res.statusCode, server_res.headers);
-                    //server_res.pipe(res);
-                    server_res.on('data', function(chunk){
-                            res.write(chunk);
-                        });
-                    server_res.on('end', function(){
+        db.exists(req.url, function(err, rexists){
+                if(rexists == true){
+                    db.lrange(req.url, 0, -1, function(err, list){
+                            res.writeHead(list[0], JSON.parse(list[1]));
+                            res.write(list[2]);
                             res.end();
+                            console.log('Responsed cached contents!!!!!');
                         });
-                });
-            if(body.length > 0){
-                server_req.write(body.join(''));
-            }
-            server_req.end();
-        /*
-        }
-        */
+                }
+                else{
+                    var x = url.parse(req.url);
+                    var body = [];
+                    req.on('data', function(data){
+                            body.push(data);
+                        });
+
+                    var options = {host: x.hostname, port: x.port || 80, path: x.path,
+                        method: req.method, headers: req.headers };
+                    var server_req = http.request(options, function(server_res){
+                            res.writeHead(server_res.statusCode, server_res.headers);
+
+
+                            var response_body = [];
+                            server_res.on('data', function(chunk){
+                                    response_body.push(chunk);
+                                    res.write(chunk);
+                                });
+                            server_res.on('end', function(){
+                                    db.rpush(req.url, server_res.statusCode);
+                                    db.rpush(req.url, JSON.stringify(server_res.headers));
+                                    db.rpush(req.url, response_body.join(''));
+                                    db.expire(req.url, 100);
+                                    console.log('Set cache!!!!!');
+
+                                    res.end();
+                                });
+
+
+                        });
+                    if(body.length > 0){
+                        server_req.write(body.join(''));
+                    }
+                    server_req.end();
+                }
+            });
     });
 
 
