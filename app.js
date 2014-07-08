@@ -12,7 +12,7 @@ var routes = require('./routes/index');
 var users = require('./routes/users');
 
 var app = express();
-var db = redis.createClient(6379,"192.168.56.11");
+var db = redis.createClient(6379,"192.168.56.11", {'return_buffers': true});
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -50,19 +50,23 @@ app.use(function(req, res, next){
                     var server_req = http.request(options, function(server_res){
                             res.writeHead(server_res.statusCode, server_res.headers);
 
-
-                            var response_body = [];
+                            var bufs = [];
+                            bufs.totalLength = 0;
                             server_res.on('data', function(chunk){
-                                    response_body.push(chunk);
+                                    bufs.push(chunk);
+                                    bufs.totalLength += chunk.length;
                                     res.write(chunk);
                                 });
                             server_res.on('end', function(){
-                                    db.rpush(req.url, server_res.statusCode);
-                                    db.rpush(req.url, JSON.stringify(server_res.headers));
-                                    db.rpush(req.url, response_body.join(''));
-                                    db.expire(req.url, 100);
-                                    console.log('Set cache!!!!!');
+                                    var data = Buffer.concat(bufs, bufs.totalLength);
 
+                                    if( server_res.statusCode == 200 ){
+                                        db.rpush(req.url, server_res.statusCode);
+                                        db.rpush(req.url, JSON.stringify(server_res.headers));
+                                        db.rpush(req.url, data);
+                                        db.expire(req.url, 100);
+                                        console.log('Set cache!!!!!');
+                                    }
                                     res.end();
                                 });
 
