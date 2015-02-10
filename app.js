@@ -25,7 +25,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Add Proxy
 //
-app.use(redis_proxy.proxy({host: "redisvip01.testenv.tk"})); //connect to redis vip
+app.use(redis_proxy.proxy({host: "localhost"})); //connect to redis vip
 
 app.use('/', routes);
 app.use('/users', users);

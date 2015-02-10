@@ -1,9 +1,26 @@
 #!/usr/bin/env node
 var debug = require('debug')('node_proxy');
 var app = require('../app');
+var url = require('url');
+var net = require('net');
 
 app.set('port', process.env.PORT || 8080);
 
 var server = app.listen(app.get('port'), function() {
   debug('Express server listening on port ' + server.address().port);
+});
+
+server.on('connect', function(req, soc, head){
+	var x = url.parse('https://' + req.url);
+	var svr_soc = net.connect(x.port || 443, x.hostname, function() {
+		soc.write('HTTP/1.0 200 Connection established\r\n\r\n');
+		console.log('HTTP/1.0 200 Connection established!!!!!!');
+		if (head && head.length) svr_soc.write(head);
+		soc.pipe(svr_soc);
+	});
+	svr_soc.pipe(soc);
+	svr_soc.on('error', function(err){
+		soc.end();
+		printError(err, 'svr_soc', req.url);
+	});
 });
